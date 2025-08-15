@@ -3,8 +3,9 @@ import comfy.model_management
 import comfy.utils
 import folder_paths
 import os
+from tqdm import tqdm
 
-CLAMP_QUANTILE = 0.99
+# CLAMP_QUANTILE = 0.99
 
 def extract_lora(diff, rank):
     conv2d = (len(diff.shape) == 4)
@@ -26,12 +27,12 @@ def extract_lora(diff, rank):
     U = U @ torch.diag(S)
     Vh = Vh[:rank, :]
 
-    dist = torch.cat([U.flatten(), Vh.flatten()])
-    hi_val = torch.quantile(dist, CLAMP_QUANTILE)
-    low_val = -hi_val
+    # dist = torch.cat([U.flatten(), Vh.flatten()])
+    # hi_val = torch.quantile(dist, CLAMP_QUANTILE)
+    # low_val = -hi_val
 
-    U = U.clamp(low_val, hi_val)
-    Vh = Vh.clamp(low_val, hi_val)
+    # U = U.clamp(low_val, hi_val)
+    # Vh = Vh.clamp(low_val, hi_val)
     if conv2d:
         U = U.reshape(out_dim, rank, 1, 1)
         Vh = Vh.reshape(rank, in_dim, kernel_size[0], kernel_size[1])
@@ -65,7 +66,7 @@ class ControlLoraSave:
         f = model.model_state_dict()
         c = control_net.control_model.state_dict()
 
-        for k in f:
+        for k in tqdm(f):
             if k.startswith(prefix_key):
                 ck = k[len(prefix_key):]
                 if ck not in c:
@@ -80,16 +81,16 @@ class ControlLoraSave:
                             name = name[:-len(".weight")]
                         out1_key = "{}.up".format(name)
                         out2_key = "{}.down".format(name)
-                        output_sd[out1_key] = out[0].contiguous().half().cpu()
-                        output_sd[out2_key] = out[1].contiguous().half().cpu()
+                        output_sd[out1_key] = out[0].contiguous().to(torch.bfloat16).cpu()
+                        output_sd[out2_key] = out[1].contiguous().to(torch.bfloat16).cpu()
                     else:
                         output_sd[ck] = c[ck]
-                        print(ck, c[ck].shape)
+                        # print(ck, c[ck].shape)
                     stored.add(ck)
 
         for k in c:
             if k not in stored:
-                output_sd[k] = c[k].half()
+                output_sd[k] = c[k]
         output_sd["lora_controlnet"] = torch.tensor([])
 
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
