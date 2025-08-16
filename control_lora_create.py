@@ -20,12 +20,17 @@ def extract_lora(diff, rank):
         else:
             diff = diff.squeeze()
 
-
     U, S, Vh = torch.linalg.svd(diff.float())
-    U = U[:, :rank]
+    assert S.ndim == 1
+    S_orig = S
     S = S[:rank]
-    U = U @ torch.diag(S)
-    Vh = Vh[:rank, :]
+    fro_ratio = (S**2).sum().item() / (S_orig**2).sum().item()
+    tqdm.write(f"fro_ratio {fro_ratio:.3g}")
+
+    sign_S = torch.sign(S)
+    sqrt_abs_S = torch.sqrt(torch.abs(S))
+    U = U[:, :rank] * (sign_S * sqrt_abs_S)
+    Vh = sqrt_abs_S[:, None] * Vh[:rank, :]
 
     # dist = torch.cat([U.flatten(), Vh.flatten()])
     # hi_val = torch.quantile(dist, CLAMP_QUANTILE)
